@@ -1,0 +1,20 @@
+{
+  "name": "opencode-ascii-whales",
+  "version": "1.0.0",
+  "description": "ASCII whale pods and a koi pond for the OpenCode TUI — /whales to configure, /feed to feed the koi",
+  "type": "module",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/dakfjalka/opencode-ascii-whales.git"
+  },
+  "keywords": ["opencode", "tui", "plugin", "ascii", "whales", "koi"],
+  "dependencies": {
+    "@opencode-ai/plugin": "^1.19.0"
+  },
+  "peerDependenciesMeta": {
+    "@opencode-ai/plugin": {
+      "optional": true
+    }
+  }
+}
