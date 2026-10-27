@@ -113,6 +113,9 @@ export default Plugin.define({
       species: (store.species === "orca" ? "orca" : "humpback") as Settings["species"],
       count: num(store.count, DEFAULTS.count, 1, 8),
       size: num(store.size, DEFAULTS.size, 0.1, 10),
+      // koi reads speed at construction (its setAppearance has no speed),
+      // so it must ride along here or the engine gets NaN and paints nothing.
+      speed: num(store.speed, DEFAULTS.speed, 0.1, 10),
       gridScale: num(store.gridScale, DEFAULTS.gridScale, 0.1, 10),
       fishCount: num(store.fishCount, DEFAULTS.fishCount, 0, 1000),
     })
@@ -309,6 +312,7 @@ function WhalesLayer(props: {
     species: "humpback" | "orca"
     count: number
     size: number
+    speed: number
     gridScale: number
     fishCount: number
   }
@@ -316,12 +320,29 @@ function WhalesLayer(props: {
   const ctx = props.context
   const [size, setSize] = createSignal({ w: 0, h: 0 })
 
+  // The display gate needs real terminal dimensions. onSizeChange is the
+  // primary source, but it may not fire for a box that mounts at full size
+  // (e.g. after a plugin hot reload), leaving the signal at 0 and the whole
+  // ocean silently hidden — so poll the element as a safety net.
+  let boxEl: { width?: number; height?: number } | undefined
+  const syncSize = () => {
+    const w = boxEl?.width
+    const h = boxEl?.height
+    if (typeof w === "number" && typeof h === "number" && w > 0 && h > 0) {
+      setSize((prev) => (prev.w === w && prev.h === h ? prev : { w, h }))
+    }
+  }
+
   const route = createMemo(() => ctx.ui.router.current())
   // home = full character ocean; session pages = color tiles, off unless
   // enabled in settings (the koi pond is home-only); plugin routes = hidden.
+  // The host also launches into a placeholder session (`--continue` lands on
+  // sessionID "dummy" before the first message) — that screen is the
+  // new-conversation home as far as the user is concerned, so treat it as
+  // home too, or the pond never shows for those launches.
   const stage = createMemo<"home" | "session" | "off">(() => {
-    const r = route()
-    if (r.type === "home") return "home"
+    const r = route() as { type: string; sessionID?: string }
+    if (r.type === "home" || (r.type === "session" && r.sessionID === "dummy")) return "home"
     if (r.type === "session") {
       if (props.read().animation === "koi") return "off"
       return props.read().session ? "session" : "off"
@@ -385,13 +406,20 @@ function WhalesLayer(props: {
     setAvoid(findStructures())
   }
   createEffect(refreshAvoid)
-  const avoidTimer = setInterval(refreshAvoid, 2500)
-  onCleanup(() => clearInterval(avoidTimer))
+  const layoutTimer = setInterval(() => {
+    syncSize()
+    refreshAvoid()
+  }, 2500)
+  onCleanup(() => clearInterval(layoutTimer))
 
   const bg = createMemo(() => rgbaToHex(ctx.theme.background.base, ctx.themeMode === "dark" ? "#0a0a0a" : "#fafafa"))
 
   return (
     <box
+      ref={(el) => {
+        boxEl = el
+        syncSize()
+      }}
       position="absolute"
       top={0}
       left={0}
@@ -435,6 +463,7 @@ function OceanView(props: {
     species: "humpback" | "orca"
     count: number
     size: number
+    speed: number
     gridScale: number
     fishCount: number
   }
